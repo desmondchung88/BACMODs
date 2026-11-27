@@ -49,10 +49,6 @@ jobs:
     # Skipped here, not by a workflow path filter, so the required check still reports success.
     if: needs.checks.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
-    env:
-      # The Docker build action would otherwise add a summary and upload a build record on every run.
-      DOCKER_BUILD_SUMMARY: false
-      DOCKER_BUILD_RECORD_UPLOAD: false
     steps:
       - uses: actions/checkout@v6
         with:
@@ -63,22 +59,10 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - uses: docker/setup-buildx-action@v4
-      # Every run reuses saved image layers, but only runs on main save them: saving takes time,
-      # and a cache saved on main can be read by every pull request.
-      - name: Build the shell image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          load: true
-          provenance: false
-          # The image name Docker Compose gives the web service, so it can start without building.
-          tags: bacmods-web:latest
-          build-args: BACMODS_GIT_COMMIT=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max,ignore-error=true' || '' }}
-      - name: Start the shell
-        run: docker compose up -d --no-build
+      - name: Build and start the shell
+        env:
+          BACMODS_GIT_COMMIT: ${{ github.sha }}
+        run: docker compose up --build -d
       - name: Wait for the shell
         run: |
           curl --fail --silent --show-error --output /dev/null \
