@@ -7,7 +7,7 @@ import Icon from "@/components/ui/Icon";
 import { planActions } from "@/hooks/use-plan";
 import { lessonTypeName, shortLabel } from "@/lib/class-types";
 import { sectionLines } from "@/lib/format";
-import { clashesWithPlan, resolveSection, sectionsOfType } from "@/lib/plan";
+import { clashPartners, resolveSection, sectionsOfType } from "@/lib/plan";
 import type { Module, TermDataset } from "@/lib/schemas/dataset";
 import type { Plan } from "@/lib/schemas/plan";
 
@@ -89,7 +89,7 @@ export default function ClassRow({
               name={`${module.code}-${lessonType}`}
               section={section}
               selected={chosen?.id === section.id}
-              clash={clashesWithPlan(section.sessions, plan, dataset, { moduleCode: module.code, lessonType })}
+              clashesWith={clashPartners(section.sessions, plan, dataset, { moduleCode: module.code, lessonType })}
               teachingWeeks={teachingWeeks}
               onSelect={() => planActions.pickSection(module.code, lessonType, section.id)}
             />

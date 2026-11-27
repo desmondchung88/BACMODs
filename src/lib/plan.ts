@@ -164,20 +164,40 @@ export function planClashes(
   return { count, items };
 }
 
+export interface ClashPartner {
+  moduleCode: string;
+  lessonType: string;
+}
+
+/** A module, or one of its lesson types, to leave out because the sessions would replace it. */
+type ClashIgnore = { moduleCode: string; lessonType?: string };
+
+/** Chosen classes in the rest of the plan that these sessions would clash with, once each, in plan order. */
+export function clashPartners(
+  sessions: Session[],
+  plan: Plan,
+  dataset: TermDataset,
+  ignore: ClashIgnore,
+): ClashPartner[] {
+  const partners = new Map<string, ClashPartner>();
+  for (const { moduleCode, lessonType, session } of plannedSessions(plan, dataset)) {
+    const ignored =
+      moduleCode === ignore.moduleCode &&
+      (ignore.lessonType === undefined || lessonType === ignore.lessonType);
+    if (ignored || !sessions.some((s) => sessionsClash(s, session))) continue;
+    partners.set(`${moduleCode}:${lessonType}`, { moduleCode, lessonType });
+  }
+  return [...partners.values()];
+}
+
 /** Would these sessions clash with the chosen sections of the rest of the plan? */
 export function clashesWithPlan(
   sessions: Session[],
   plan: Plan,
   dataset: TermDataset,
-  ignore: { moduleCode: string; lessonType?: string },
+  ignore: ClashIgnore,
 ): boolean {
-  return plannedSessions(plan, dataset).some(
-    (p) =>
-      !(
-        p.moduleCode === ignore.moduleCode &&
-        (ignore.lessonType === undefined || p.lessonType === ignore.lessonType)
-      ) && sessions.some((s) => sessionsClash(s, p.session)),
-  );
+  return clashPartners(sessions, plan, dataset, ignore).length > 0;
 }
 
 /** Check the same default picks that adding the module will apply. */

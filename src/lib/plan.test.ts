@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MOCK_DATASET } from "@/lib/mock/dataset";
 import {
   clashesWithPlan,
+  clashPartners,
   curriculumCodes,
   defaultSectionsClash,
   defaultSelectionFor,
@@ -70,6 +71,31 @@ describe("plan", () => {
   it("flags the capstone seminar as clashing with the data structures lecture", () => {
     const p = plan();
     expect(clashesWithPlan(MOCK_DATASET.modules.BAC4000A.sections[0].sessions, p, MOCK_DATASET, { moduleCode: "BAC4000A" })).toBe(true);
+  });
+  it("names the chosen class a section would clash with, leaving out the pick it replaces", () => {
+    const tutorial = (id: string) => MOCK_DATASET.modules.INF1105.sections.find((section) => section.id === id)!;
+    const ignore = { moduleCode: "INF1105", lessonType: "TUT" };
+    expect(clashPartners(tutorial("T1").sessions, plan(), MOCK_DATASET, ignore)).toEqual([]);
+    expect(clashPartners(tutorial("T2").sessions, plan(), MOCK_DATASET, ignore)).toEqual([
+      { moduleCode: "INF2008", lessonType: "LEC" },
+    ]);
+  });
+  it("lists each clashing class once, in plan order", () => {
+    const lecture = MOCK_DATASET.modules.INF1107.sections[0].sessions[0];
+    const tutorial = MOCK_DATASET.modules.INF2008.sections[0].sessions[0];
+    const sessions = [tutorial, lecture, lecture];
+    expect(clashPartners(sessions, plan(), MOCK_DATASET, { moduleCode: "BAC4000A" })).toEqual([
+      { moduleCode: "INF1107", lessonType: "LEC" },
+      { moduleCode: "INF2008", lessonType: "LEC" },
+    ]);
+  });
+  it("does not name a class that runs in different weeks", () => {
+    const quiz = MOCK_DATASET.modules.INF1107.sections.find((section) => section.id === "Q1")!.sessions[0];
+    const ignore = { moduleCode: "BAC4000A" };
+    expect(clashPartners([{ ...quiz, weeks: [1, 2, 3, 4, 5] }], plan(), MOCK_DATASET, ignore)).toEqual([]);
+    expect(clashPartners([quiz], plan(), MOCK_DATASET, ignore)).toEqual([
+      { moduleCode: "INF1107", lessonType: "QUIZ" },
+    ]);
   });
   it("checks only the sections that adding a search result would pick", () => {
     const p = plan();
