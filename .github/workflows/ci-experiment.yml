@@ -1,0 +1,112 @@
+# Temporary measurement workflow. It lives only on chore/ci-timing and must never be merged.
+# Compares building the app image as CI does today with building it from a GitHub Actions cache.
+name: Experiment - Docker cache
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  DOCKER_BUILD_SUMMARY: false
+  DOCKER_BUILD_RECORD_UPLOAD: false
+  CACHE_SCOPE: exp-docker-${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  # First build with an empty cache: shows the cost of a cold run and fills the cache.
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Change a source file
+        run: echo "seed-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" > experiment-stamp.txt
+      - uses: docker/setup-buildx-action@v4
+      - name: Build and save the cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          provenance: false
+          tags: bacmods-web:latest
+          build-args: BACMODS_GIT_COMMIT=seed-${{ github.run_id }}-${{ github.run_attempt }}
+          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
+
+  # Today's behaviour. Waits for the seed only so both groups run in the same period.
+  uncached:
+    needs: seed
+    strategy:
+      fail-fast: false
+      matrix:
+        repeat: [1, 2, 3, 4, 5]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      STAMP: uncached-${{ matrix.repeat }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Change a source file
+        run: echo "$STAMP" > experiment-stamp.txt
+      - name: Build and start without cache
+        env:
+          BACMODS_GIT_COMMIT: ${{ env.STAMP }}
+        run: docker compose up --build -d
+      - name: Wait for the app
+        run: |
+          curl --fail --silent --show-error --output /tmp/page.html \
+            --max-time 3 --retry 30 --retry-delay 1 --retry-max-time 90 \
+            --retry-all-errors http://localhost:3000/
+          grep -q "$STAMP" /tmp/page.html
+
+  # Proposed behaviour: reuse unchanged layers, then save this run's layers as a real run would.
+  cached:
+    needs: seed
+    strategy:
+      fail-fast: false
+      matrix:
+        repeat: [1, 2, 3, 4, 5]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      STAMP: cached-${{ matrix.repeat }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Change a source file
+        run: echo "$STAMP" > experiment-stamp.txt
+      - uses: docker/setup-buildx-action@v4
+      - name: Build with cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          provenance: false
+          tags: bacmods-web:latest
+          build-args: BACMODS_GIT_COMMIT=${{ env.STAMP }}
+          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
+          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}-${{ matrix.repeat }}
+      - name: Start the cached image
+        run: docker compose up -d --no-build
+      - name: Wait for the app
+        run: |
+          curl --fail --silent --show-error --output /tmp/page.html \
+            --max-time 3 --retry 30 --retry-delay 1 --retry-max-time 90 \
+            --retry-all-errors http://localhost:3000/
+          grep -q "$STAMP" /tmp/page.html
+      # Publishes HIT or MISS as an annotation so the result can be read without opening logs.
+      - name: Check the install cache (not timed)
+        run: |
+          docker buildx history logs > /tmp/build.log 2>&1 || true
+          step=$(grep -m1 -E '^#[0-9]+ \[deps [0-9]+/[0-9]+\] RUN npm ci' /tmp/build.log | cut -d' ' -f1 || true)
+          result=UNKNOWN
+          if [ -n "$step" ]; then
+            result=MISS
+            if grep -qxF "$step CACHED" /tmp/build.log; then result=HIT; fi
+          fi
+          echo "::notice title=install-cache::$result"
