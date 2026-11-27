@@ -1,6 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { lookupShare, makeShareRecord, parseShareInput } from "@/lib/share";
+import { lookupShare, makeShareRecord, parseShareInput, shareChangesPlan } from "@/lib/share";
 import type { SharePayload } from "@/lib/schemas/plan";
+
+describe("shareChangesPlan", () => {
+  const saved: SharePayload = {
+    programme: "BAC",
+    intake: "AY2099",
+    term: "Y2T3",
+    added: ["TESTADD1", "TESTADD2"],
+    selection: { TESTCORE1: { LAB: "L1", QUIZ: "Q1" }, TESTADD1: { LEC: "ALL" } },
+    colors: { TESTCORE1: "green" },
+  };
+
+  it("ignores order, code spacing and colours", () => {
+    expect(shareChangesPlan(saved, {
+      ...saved,
+      added: ["testadd 2", "TESTADD1"],
+      selection: { TESTADD1: { LEC: "ALL" }, TESTCORE1: { QUIZ: "Q1", LAB: "L1" } },
+      colors: { TESTCORE1: "pink" },
+    })).toBe(false);
+  });
+  it("notices a different section pick", () => {
+    const selection = { ...saved.selection, TESTCORE1: { LAB: "L2", QUIZ: "Q1" } };
+    expect(shareChangesPlan(saved, { ...saved, selection })).toBe(true);
+  });
+  it("notices an added or dropped module", () => {
+    expect(shareChangesPlan(saved, { ...saved, added: ["TESTADD1"] })).toBe(true);
+    expect(shareChangesPlan(saved, { ...saved, added: [...saved.added, "TESTADD3"] })).toBe(true);
+  });
+});
 
 describe("parseShareInput", () => {
   it("accepts a bare code, trimmed and uppercased", () => {
