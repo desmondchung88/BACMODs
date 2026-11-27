@@ -117,7 +117,7 @@ export default function WeekView({
                     <span className="block truncate text-micro">{item.moduleCode}</span>
                     <span className="flex items-center justify-between gap-0.5 text-micro-regular">
                       <span className="truncate">{label}</span>
-                      {clash ? <Icon name="alert-circle" size={10} /> : null}
+                      {clash ? <Icon name="alert-circle" size={10} className="text-danger-text" /> : null}
                     </span>
                   </div>
                 );
