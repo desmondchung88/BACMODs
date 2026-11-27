@@ -1,6 +1,7 @@
 # Temporary measurement workflow. It lives only on chore/ci-timing and must never be merged.
-# Compares today's package and browser installs with quicker alternatives.
-name: Experiment - install speed
+# Compares building the app image with and without a GitHub Actions cache, when the image installs
+# packages without the audit and funding checks. Each job edits the Dockerfile before building.
+name: Experiment - Docker cache with quick install
 
 on:
   pull_request:
@@ -8,77 +9,114 @@ on:
 permissions:
   contents: read
 
-jobs:
-  # Repeat comes first in the matrix so jobs of the two variants are created alternately.
-  install:
-    strategy:
-      fail-fast: false
-      matrix:
-        repeat: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-        variant: [current, quiet]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: npm
-      - name: Install as now
-        if: matrix.variant == 'current'
-        run: npm ci
-      - name: Install without audit and funding checks
-        if: matrix.variant == 'quiet'
-        run: npm ci --no-audit --no-fund
-      # Timed separately to see whether the audit request itself is the slow part.
-      - name: Audit on its own
-        if: matrix.variant == 'quiet'
-        continue-on-error: true
-        run: npm audit --package-lock-only --audit-level=high
+env:
+  DOCKER_BUILD_SUMMARY: false
+  DOCKER_BUILD_RECORD_UPLOAD: false
+  CACHE_SCOPE: exp-docker-${{ github.run_id }}-${{ github.run_attempt }}
 
-  # Starts after the install jobs so the two experiments don't compete for runners.
-  browser:
-    needs: install
-    if: ${{ !cancelled() }}
-    strategy:
-      fail-fast: false
-      matrix:
-        repeat: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-        variant: [full, shell]
+jobs:
+  # First build with an empty cache: shows the cost of a cold run and fills the cache.
+  seed:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - name: Change a source file and use the quick install
+        run: |
+          echo "seed-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" > experiment-stamp.txt
+          sed -i 's/^RUN npm ci$/RUN npm ci --no-audit --no-fund/' Dockerfile
+          grep -qx 'RUN npm ci --no-audit --no-fund' Dockerfile
+      - uses: docker/setup-buildx-action@v4
+      - name: Build and save the cache
+        uses: docker/build-push-action@v7
         with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci
-      - name: Install the browser as now
-        if: matrix.variant == 'full'
-        run: npx playwright install --with-deps chromium
-      - name: Install only the headless shell
-        if: matrix.variant == 'shell'
-        run: npx playwright install --with-deps --only-shell chromium
-      # The smaller install must still run every browser test.
-      - name: Build and start the app
-        if: matrix.variant == 'shell'
+          context: .
+          load: true
+          provenance: false
+          tags: bacmods-web:latest
+          build-args: BACMODS_GIT_COMMIT=seed-${{ github.run_id }}-${{ github.run_attempt }}
+          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
+
+  # Today's behaviour. Waits for the seed only so both groups run in the same period.
+  uncached:
+    needs: seed
+    strategy:
+      fail-fast: false
+      matrix:
+        repeat: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      STAMP: uncached-${{ matrix.repeat }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Change a source file and use the quick install
+        run: |
+          echo "$STAMP" > experiment-stamp.txt
+          sed -i 's/^RUN npm ci$/RUN npm ci --no-audit --no-fund/' Dockerfile
+          grep -qx 'RUN npm ci --no-audit --no-fund' Dockerfile
+      - name: Build and start without cache
         env:
-          BACMODS_GIT_COMMIT: ${{ github.sha }}
+          BACMODS_GIT_COMMIT: ${{ env.STAMP }}
         run: docker compose up --build -d
       - name: Wait for the app
-        if: matrix.variant == 'shell'
         run: |
-          curl --fail --silent --show-error --output /dev/null \
+          curl --fail --silent --show-error --output /tmp/page.html \
             --max-time 3 --retry 30 --retry-delay 1 --retry-max-time 90 \
             --retry-all-errors http://localhost:3000/
-      - name: Run the browser tests
-        if: matrix.variant == 'shell'
-        env:
-          PLAYWRIGHT_EXPECT_BUILD: "1"
-        # The github reporter publishes failures as annotations, readable without opening logs.
-        run: npm run test:e2e -- --reporter=list,github
+          grep -q "$STAMP" /tmp/page.html
+
+  # Proposed pull request behaviour: reuse unchanged layers and save nothing.
+  # Only main would write the cache; the seed job stands in for that.
+  cached:
+    needs: seed
+    strategy:
+      fail-fast: false
+      matrix:
+        repeat: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      STAMP: cached-${{ matrix.repeat }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Change a source file and use the quick install
+        run: |
+          echo "$STAMP" > experiment-stamp.txt
+          sed -i 's/^RUN npm ci$/RUN npm ci --no-audit --no-fund/' Dockerfile
+          grep -qx 'RUN npm ci --no-audit --no-fund' Dockerfile
+      - uses: docker/setup-buildx-action@v4
+      - name: Build with cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          provenance: false
+          tags: bacmods-web:latest
+          build-args: BACMODS_GIT_COMMIT=${{ env.STAMP }}
+          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
+      - name: Start the cached image
+        run: docker compose up -d --no-build
+      - name: Wait for the app
+        run: |
+          curl --fail --silent --show-error --output /tmp/page.html \
+            --max-time 3 --retry 30 --retry-delay 1 --retry-max-time 90 \
+            --retry-all-errors http://localhost:3000/
+          grep -q "$STAMP" /tmp/page.html
+      # Publishes HIT or MISS as an annotation so the result can be read without opening logs.
+      - name: Check the install cache (not timed)
+        run: |
+          docker buildx history logs > /tmp/build.log 2>&1 || true
+          step=$(grep -m1 -E '^#[0-9]+ \[deps [0-9]+/[0-9]+\] RUN npm ci' /tmp/build.log | cut -d' ' -f1 || true)
+          result=UNKNOWN
+          if [ -n "$step" ]; then
+            result=MISS
+            if grep -qxF "$step CACHED" /tmp/build.log; then result=HIT; fi
+          fi
+          echo "::notice title=install-cache::$result"
