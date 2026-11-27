@@ -9,8 +9,18 @@ import { assignOverlapLanes } from "@/lib/timetable";
 
 const HOUR_HEIGHT = 40;
 const AXIS_WIDTH = 2.25; // rem
-const MIN_DAY_WIDTH = 4; // rem
+const MIN_DAY_WIDTH = 3.6; // rem; Mon–Fri fit a 360 px screen when nothing clashes
 const MIN_CLASH_LANE_WIDTH = 4.25; // rem, including the clash border around Micro labels
+const LONG_CODE_LENGTH = 8; // module codes this long don't fit MIN_DAY_WIDTH
+const LONG_CODE_DAY_WIDTH = 4; // rem for an 8-character code
+const EXTRA_CHARACTER_WIDTH = 0.5; // rem for each character beyond that
+
+/** A day is only as wide as its longest module code needs, so other weeks stay compact. */
+function dayWidthFor(codes: string[]): number {
+  const longest = Math.max(0, ...codes.map((code) => code.length));
+  if (longest < LONG_CODE_LENGTH) return MIN_DAY_WIDTH;
+  return LONG_CODE_DAY_WIDTH + (longest - LONG_CODE_LENGTH) * EXTRA_CHARACTER_WIDTH;
+}
 
 /** Mon–Fri grid (plus Sat when the plan needs it) with a block per session. */
 export default function WeekView({
@@ -35,7 +45,8 @@ export default function WeekView({
     const indexes = items.map((_, i) => i).filter((i) => items[i].session.day === day);
     const placements = assignOverlapLanes(indexes.map((i) => items[i].session));
     const lanes = Math.max(1, ...placements.map((placement) => placement.lanes));
-    const minWidth = lanes === 1 ? MIN_DAY_WIDTH : lanes * MIN_CLASH_LANE_WIDTH;
+    const dayWidth = dayWidthFor(indexes.map((i) => items[i].moduleCode));
+    const minWidth = lanes === 1 ? dayWidth : lanes * Math.max(MIN_CLASH_LANE_WIDTH, dayWidth);
     return { day, indexes, placements, minWidth };
   });
   const minWidth = `calc(${AXIS_WIDTH + columns.reduce((width, column) => width + column.minWidth, 0)}rem + 2px)`;
