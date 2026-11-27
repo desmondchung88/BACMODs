@@ -38,7 +38,8 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
+      # The audit request made installs slow, so the guard workflow runs it once instead.
+      - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
@@ -58,7 +59,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund
       - name: Build and start the shell
         env:
           BACMODS_GIT_COMMIT: ${{ github.sha }}
@@ -68,7 +69,8 @@ jobs:
           curl --fail --silent --show-error --output /dev/null \
             --max-time 3 --retry 30 --retry-delay 1 --retry-max-time 90 \
             --retry-all-errors http://localhost:3000/
-      - run: npx playwright install --with-deps chromium
+      # The tests run headless, so the full browser isn't needed.
+      - run: npx playwright install --with-deps --only-shell chromium
       - name: Test the checked-out build
         env:
           PLAYWRIGHT_EXPECT_BUILD: "1"

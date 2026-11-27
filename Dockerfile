@@ -4,7 +4,8 @@
 FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# No audit here: the pull request guards run it once against the lockfile.
+RUN npm ci --no-audit --no-fund
 
 FROM node:24-alpine AS build
 WORKDIR /app
