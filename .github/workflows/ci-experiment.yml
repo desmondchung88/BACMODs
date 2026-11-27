@@ -41,7 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        repeat: [1, 2, 3, 4, 5]
+        repeat: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -63,13 +63,14 @@ jobs:
             --retry-all-errors http://localhost:3000/
           grep -q "$STAMP" /tmp/page.html
 
-  # Proposed behaviour: reuse unchanged layers, then save this run's layers as a real run would.
+  # Proposed pull request behaviour: reuse unchanged layers and save nothing.
+  # Only main would write the cache; the seed job stands in for that.
   cached:
     needs: seed
     strategy:
       fail-fast: false
       matrix:
-        repeat: [1, 2, 3, 4, 5]
+        repeat: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -90,7 +91,6 @@ jobs:
           tags: bacmods-web:latest
           build-args: BACMODS_GIT_COMMIT=${{ env.STAMP }}
           cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
-          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}-${{ matrix.repeat }}
       - name: Start the cached image
         run: docker compose up -d --no-build
       - name: Wait for the app
