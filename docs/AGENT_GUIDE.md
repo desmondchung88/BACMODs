@@ -67,12 +67,14 @@ docker compose down
 ```
 
 GitHub Actions runs `checks` on pull requests and pushes to `main`, then runs `e2e` after `checks`
-passes. Both jobs use Node.js 24, cache npm downloads and check out the event SHA. On a pull request,
-that SHA identifies GitHub's test merge commit, so the Docker image stamp and Playwright's expected
-revision match. The browser job builds the image with Docker Buildx, reusing layers from the GitHub
-Actions cache. Only runs on `main` save that cache, so a pull request that changes dependencies
-installs them in the image on every run until it is merged. The job then waits for HTTP readiness
-and uploads available reports and traces on failure. [CI workflow](../.github/workflows/ci.yml)
+passes. A pull request that changes only Markdown (`.md`) files skips `e2e`, which still counts as a
+passing check. Both jobs use Node.js 24, cache npm downloads and check out the event SHA. On a pull
+request, that SHA identifies GitHub's test merge commit, so the Docker image stamp and Playwright's
+expected revision match. The browser job builds the image with Docker Buildx, reusing layers from
+the GitHub Actions cache. Only runs on `main` save that cache, so a pull request that changes
+dependencies installs them in the image on every run until it is merged. The job then waits for HTTP
+readiness and uploads available reports and traces on failure.
+[CI workflow](../.github/workflows/ci.yml)
 
 The pull-request guards run Gitleaks and check changed paths against the data and environment-file
 rules below. [Guard workflow](../.github/workflows/guards.yml)

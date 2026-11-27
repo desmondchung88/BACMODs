@@ -15,11 +15,25 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.changes.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
+          # The merge commit and its parents, so a pull request can be compared with its base.
+          fetch-depth: 2
           persist-credentials: false
+      # Browser tests are skipped when a pull request changes only Markdown files. Renames are
+      # listed as a removal and an addition, so a code file renamed to .md still counts as code.
+      - name: Check whether only Markdown files changed
+        id: changes
+        if: github.event_name == 'pull_request'
+        run: |
+          files=$(git diff --name-only --no-renames HEAD^1 HEAD)
+          if [ -n "$files" ] && ! grep -qv '\.md$' <<<"$files"; then
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -32,6 +46,8 @@ jobs:
 
   e2e:
     needs: checks
+    # Skipped here, not by a workflow path filter, so the required check still reports success.
+    if: needs.checks.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     env:
       # The Docker build action would otherwise add a summary and upload a build record on every run.
