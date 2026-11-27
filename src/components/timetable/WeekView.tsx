@@ -12,7 +12,7 @@ const AXIS_WIDTH = 2.25; // rem
 const MIN_DAY_WIDTH = 3.6; // rem; Mon–Fri fit a 360 px screen when nothing clashes
 const MIN_CLASH_LANE_WIDTH = 4.25; // rem, including the clash border around Micro labels
 const LONG_CODE_LENGTH = 8; // module codes this long don't fit MIN_DAY_WIDTH
-const LONG_CODE_DAY_WIDTH = 4; // rem for an 8-character code
+const LONG_CODE_DAY_WIDTH = 4.5; // rem for an 8-character code
 const EXTRA_CHARACTER_WIDTH = 0.5; // rem for each character beyond that
 
 /** A day is only as wide as its longest module code needs, so other weeks stay compact. */
