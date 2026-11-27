@@ -218,6 +218,6 @@ Wording added while building the S1 shell on mock data, where §7 has no string 
 | Auto-pick (until built) | Toast "Auto-pick is coming soon. Your sections were not changed." |
 | Calendar tile (until built) | Toast "Calendar export is coming soon." |
 | Clash status | OK: "OK: no clashes" · Clash: "Clash: 1 overlap in your plan" (plural "overlaps") |
-| Section option clash (below the time and venue) | "Clashes with INF1107 Lecture" · two: "Clashes with INF1107 Lecture and INF2008 Lecture" · more: "Clashes with INF1107 Lecture, INF2008 Lecture +1 more" |
+| Clash line (below the time and venue on a Section option, and on a fixed or closed Class row) | "Clashes with INF1107 Lecture" · two: "Clashes with INF1107 Lecture and INF2008 Lecture" · more: "Clashes with INF1107 Lecture, INF2008 Lecture +1 more" |
 | Empty day | "No classes on Monday this week." |
 | Copy actions | "Section list copied" · "Share code copied" · "Link copied" · failure "Couldn't copy. Select the text and copy it yourself." |

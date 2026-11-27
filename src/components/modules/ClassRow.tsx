@@ -6,7 +6,7 @@ import Chip from "@/components/ui/Chip";
 import Icon from "@/components/ui/Icon";
 import { planActions } from "@/hooks/use-plan";
 import { lessonTypeName, shortLabel } from "@/lib/class-types";
-import { sectionLines } from "@/lib/format";
+import { clashSummary, sectionLines } from "@/lib/format";
 import { clashPartners, resolveSection, sectionsOfType } from "@/lib/plan";
 import type { Module, TermDataset } from "@/lib/schemas/dataset";
 import type { Plan } from "@/lib/schemas/plan";
@@ -32,6 +32,10 @@ export default function ClassRow({
   const editable = status !== "fixed" && options.length > 0;
   const name = lessonTypeName(lessonType);
   const warning = status === "removed" ? "bg-warning-50" : "";
+  // An open row shows this on the chosen option instead, so it isn't repeated.
+  const clashesWith = chosen && !(editable && open)
+    ? clashPartners(chosen.sessions, plan, dataset, { moduleCode: module.code, lessonType })
+    : [];
 
   const summary = (
     <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
@@ -50,6 +54,9 @@ export default function ClassRow({
         <span className="text-small-medium text-warning">
           {editable ? "Section removed — pick again" : "No sections available"}
         </span>
+      ) : null}
+      {clashesWith.length > 0 ? (
+        <span className="text-small-medium text-danger-text">{clashSummary(clashesWith)}</span>
       ) : null}
     </span>
   );
