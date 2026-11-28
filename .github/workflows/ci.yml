@@ -15,16 +15,31 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.changes.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
+          # The merge commit and its parents, so a pull request can be compared with its base.
+          fetch-depth: 2
           persist-credentials: false
+      # Browser tests are skipped when a pull request changes only Markdown files. Renames are
+      # listed as a removal and an addition, so a code file renamed to .md still counts as code.
+      - name: Check whether only Markdown files changed
+        id: changes
+        if: github.event_name == 'pull_request'
+        run: |
+          files=$(git diff --name-only --no-renames HEAD^1 HEAD)
+          if [ -n "$files" ] && ! grep -qv '\.md$' <<<"$files"; then
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
+      # The audit request made installs slow, so the guard workflow runs it once instead.
+      - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
@@ -32,6 +47,8 @@ jobs:
 
   e2e:
     needs: checks
+    # Skipped here, not by a workflow path filter, so the required check still reports success.
+    if: needs.checks.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -42,7 +59,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund
       - name: Build and start the shell
         env:
           BACMODS_GIT_COMMIT: ${{ github.sha }}
@@ -52,7 +69,8 @@ jobs:
           curl --fail --silent --show-error --output /dev/null \
             --max-time 3 --retry 30 --retry-delay 1 --retry-max-time 90 \
             --retry-all-errors http://localhost:3000/
-      - run: npx playwright install --with-deps chromium
+      # The tests run headless, so the full browser isn't needed.
+      - run: npx playwright install --with-deps --only-shell chromium
       - name: Test the checked-out build
         env:
           PLAYWRIGHT_EXPECT_BUILD: "1"
