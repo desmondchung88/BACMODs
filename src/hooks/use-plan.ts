@@ -73,6 +73,18 @@ function initialPlan(context: PlanContext, view: Plan["view"]): Plan {
   };
 }
 
+/** The plan this device already holds for a programme, intake and term, if any. */
+export function savedPlanFor(context: PlanContext): Plan | undefined {
+  const key = planKey(context);
+  const pending = unsaved.get(key);
+  const base = contextPlan(key, read(key)) ?? pending?.base;
+  if (base) return pending ? replayEdits(base, pending.edits) : base;
+  const { plan, configured } = getSnapshot();
+  if (configured && planKey(plan) === key) return plan;
+  const legacy = parsePlan(read(LEGACY_KEY));
+  return legacy && planKey(legacy) === key ? legacy : undefined;
+}
+
 function publish(plan: Plan, configured = snapshot.configured): void {
   if (snapshot.plan === plan && snapshot.configured === configured) return;
   snapshot = { plan, loaded: true, configured };

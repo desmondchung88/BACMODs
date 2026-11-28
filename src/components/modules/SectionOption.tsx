@@ -2,7 +2,8 @@
 
 import Icon from "@/components/ui/Icon";
 import StatusBadge from "@/components/ui/StatusBadge";
-import { sectionLines } from "@/lib/format";
+import { clashSummary, sectionLines } from "@/lib/format";
+import type { ClashPartner } from "@/lib/plan";
 import type { Section } from "@/lib/schemas/dataset";
 
 /** One selectable section: a native radio, so arrow keys and screen readers work. */
@@ -10,17 +11,18 @@ export default function SectionOption({
   name,
   section,
   selected,
-  clash,
+  clashesWith,
   teachingWeeks,
   onSelect,
 }: {
   name: string;
   section: Section;
   selected: boolean;
-  clash: boolean;
+  clashesWith: ClashPartner[];
   teachingWeeks: number;
   onSelect: () => void;
 }) {
+  const clash = clashesWith.length > 0;
   return (
     <label
       className={`relative flex cursor-pointer items-start gap-3 rounded-clash border px-3 py-2.5 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-primary ${
@@ -46,6 +48,7 @@ export default function SectionOption({
             {line}
           </span>
         ))}
+        {clash ? <span className="text-small-medium text-danger-text">{clashSummary(clashesWith)}</span> : null}
       </span>
     </label>
   );

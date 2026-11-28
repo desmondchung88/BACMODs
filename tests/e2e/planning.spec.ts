@@ -211,6 +211,49 @@ test("direct share links load the same plan as a pasted code", async ({ page }) 
   await expect(page.getByRole("region", { name: "INF1107" }).getByText("LAB P2", { exact: true })).toBeVisible();
 });
 
+test("a share code asks before replacing a saved plan", async ({ page }) => {
+  await startPlanningAt(page, "/modules");
+  const added = page.getByRole("button", { name: "Remove INF2006" });
+  await page.getByRole("button", { name: /^Plan: BAC,/ }).click();
+  const setup = page.getByRole("dialog", { name: "Your plan" });
+  const input = setup.getByRole("textbox", { name: "Share code" });
+  const load = setup.getByRole("button", { name: "Load plan" });
+  const keep = setup.getByRole("button", { name: "Keep my plan" });
+
+  await input.fill("BACMODS-7KQ2X");
+  await load.click();
+  await expect(setup.getByRole("alert")).toHaveText("Replace your saved plan for AY26 · Y1T2?");
+  await expect(keep).toBeFocused();
+  await keep.click();
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("BACMODS-7KQ2X");
+  await expect(added).toHaveCount(0);
+
+  await load.click();
+  await setup.getByRole("button", { name: "Replace my plan" }).click();
+  await expect(setup).toBeHidden();
+  await expect(added).toBeVisible();
+
+  // The same plan again changes nothing, so it loads without asking.
+  await page.getByRole("button", { name: /^Plan: BAC,/ }).click();
+  await input.fill("BACMODS-7KQ2X");
+  await load.click();
+  await expect(setup).toBeHidden();
+});
+
+test("a share link asks before replacing a saved plan", async ({ page }) => {
+  await startPlanningAt(page, "/modules");
+  await page.goto("/?share=BACMODS-7KQ2X");
+  await page.getByRole("button", { name: "Keep my plan" }).click();
+  await expect(page).toHaveURL(/\/modules$/);
+  await expect(page.getByRole("button", { name: "Add INF2006" })).toBeVisible();
+
+  await page.goto("/?share=BACMODS-7KQ2X");
+  await page.getByRole("button", { name: "Replace my plan" }).click();
+  await expect(page).toHaveURL(/\/modules$/);
+  await expect(page.getByRole("button", { name: "Remove INF2006" })).toBeVisible();
+});
+
 test("an unknown direct share link shows the field error and preserves the entered code", async ({ page }) => {
   await page.goto("/?share=BACMODS-ZZZZZ");
   const input = page.getByRole("textbox", { name: "Share code" });
@@ -270,6 +313,7 @@ test("going offline explains and disables code sharing until the connection retu
   await expect(input).toBeEnabled();
   await expect(load).toBeEnabled();
   await load.click();
+  await setup.getByRole("button", { name: "Replace my plan" }).click();
   await expect(setup).toBeHidden();
   await expect(page.getByRole("listitem").filter({ hasText: "INF1107" }).getByText("LAB P2")).toBeVisible();
 });
@@ -318,4 +362,35 @@ test("the desktop preview and timetable fit two and three concurrent class label
   await expectReadableLanes(timetable, trio);
   await page.getByRole("button", { name: "Previous week" }).click();
   await expectReadableLanes(timetable, pair);
+});
+
+test("Monday to Friday fit a 360 px week view without cutting off labels", async ({ page }) => {
+  test.skip(page.viewportSize()?.width !== 390, "Sets its own narrow width, so one project is enough");
+  await page.setViewportSize({ width: 360, height: 760 });
+  await startPlanningAt(page, "/timetable");
+  await page.getByRole("button", { name: "Week", exact: true }).click();
+  const grid = page.getByRole("group", { name: "Week timetable" });
+  await expect(grid.getByRole("img", { name: /^AAI1001 TUT ALL/ })).toBeInViewport({ ratio: 1 });
+  expect(await grid.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
+  expect(await clippedLabels(grid)).toEqual([]);
+});
+
+function clippedLabels(grid: Locator) {
+  return grid.locator(".truncate").evaluateAll((labels) =>
+    labels.filter((label) => label.scrollWidth > label.clientWidth).map((label) => label.textContent));
+}
+
+test("a day with an eight-character module code widens so the code stays whole", async ({ page }) => {
+  test.skip(page.viewportSize()?.width !== 390, "Sets its own narrow width, so one project is enough");
+  await page.setViewportSize({ width: 360, height: 760 });
+  await page.goto("/");
+  await page.getByRole("combobox", { name: "Intake" }).selectOption("AY25");
+  await page.getByRole("button", { name: "Start planning" }).click();
+  await page.getByRole("button", { name: "Add BAC4000A" }).click();
+  await expect(page.getByRole("button", { name: "Remove BAC4000A" })).toBeVisible();
+  await page.getByRole("link", { name: "Timetable" }).click();
+  await page.getByRole("button", { name: "Week", exact: true }).click();
+  const grid = page.getByRole("group", { name: "Week timetable" });
+  await expect(grid.getByRole("img", { name: /^BAC4000A/ })).toBeVisible();
+  expect(await clippedLabels(grid)).toEqual([]);
 });

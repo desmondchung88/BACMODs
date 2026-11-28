@@ -19,9 +19,10 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
+/** Stats share the row's height, so values stay level when a label wraps. */
 function Stat({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col justify-between gap-0.5">
       <dt className="text-caption text-fg-secondary">{label}</dt>
       <dd className={`text-title ${alert ? "text-danger-text" : "text-fg"}`}>{value}</dd>
     </div>

@@ -99,7 +99,7 @@ The file defines spacing on auto-layout frames. **Use 4 px as a working base** f
 
 - **Page shell.** The mobile header is 390 × 56 with 16 px side padding. The tab bar is 390 × 41, with the same inset and 24 px between tabs. A 358 px day event fits between the two 16 px page gutters. Longer module lists scroll vertically.
 - **Controls.** The base Button is 36 px high with 16 px side padding and an 8 px radius. The first-visit primary action is taller. Text input is 40 px high before helper text. Context pill is 32 px high with an 8 px radius. Intake and Trimester share a row with a 12 px gap.
-- **Timetable.** Day tab is 44 px high with a 10 px radius. Week block uses a 6 px radius and a 1 px internal gap. Free gap has a 56 px leading inset to align with the event column.
+- **Timetable.** Day tab is 44 px high with a 10 px radius. Week block uses a 6 px radius and a 1 px internal gap. Week view day columns are at least 3.6 rem wide, so Monday to Friday fit a 360 px screen when no classes overlap and module codes have seven characters or fewer. A day holding a code of eight characters or more is wider (4.5 rem, plus 0.5 rem for each further character) so the code stays whole. Overlapping classes widen their day, and the grid scrolls sideways when the days don't fit. Free gap has a 56 px leading inset to align with the event column.
 - **Radii by shape.** The sheet handle uses 2 px, chips 4 px, the clash outline 7 px and Setup sheet 12 px. Share sheet has 16 px top corners and square bottom corners. Status badges use 999 px for a full pill.
 - **Wider screens.** The phone layout above is the base. How it grows is specified in *Responsive layout* below.
 
@@ -218,5 +218,7 @@ Wording added while building the S1 shell on mock data, where §7 has no string 
 | Auto-pick (until built) | Toast "Auto-pick is coming soon. Your sections were not changed." |
 | Calendar tile (until built) | Toast "Calendar export is coming soon." |
 | Clash status | OK: "OK: no clashes" · Clash: "Clash: 1 overlap in your plan" (plural "overlaps") |
+| Replace a saved plan (Warning Banner in the Setup form, shown when a share code or link would change saved modules or picks) | "Replace your saved plan for AY26 · Y1T2?" · "The shared plan will overwrite your added modules and section choices for this trimester." · actions "Replace my plan" and "Keep my plan" (focused first) |
+| Clash line (below the time and venue on a Section option, and on a fixed or closed Class row) | "Clashes with INF1107 Lecture" · two: "Clashes with INF1107 Lecture and INF2008 Lecture" · more: "Clashes with INF1107 Lecture, INF2008 Lecture +1 more" |
 | Empty day | "No classes on Monday this week." |
 | Copy actions | "Section list copied" · "Share code copied" · "Link copied" · failure "Couldn't copy. Select the text and copy it yourself." |

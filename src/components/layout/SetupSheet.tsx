@@ -1,16 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import ReplacePlanConfirm from "@/components/layout/ReplacePlanConfirm";
 import BottomSheet from "@/components/ui/BottomSheet";
 import Button from "@/components/ui/Button";
 import SelectField from "@/components/ui/SelectField";
 import TextInput from "@/components/ui/TextInput";
 import { useToast } from "@/components/ui/Toast";
 import { OFFLINE_MESSAGE, useIsOnline } from "@/hooks/use-online";
-import { planActions, usePlanState } from "@/hooks/use-plan";
+import { planActions, savedPlanFor, usePlanState } from "@/hooks/use-plan";
 import { MOCK_TERM } from "@/lib/mock/dataset";
 import { lookupMockShare } from "@/lib/mock/shares";
 import type { Plan, SharePayload } from "@/lib/schemas/plan";
+import { shareChangesPlan } from "@/lib/share";
 
 const INTAKES = [
   { value: "AY25", label: "AY25" },
@@ -27,6 +29,11 @@ type SetupFormProps = {
   shareInput?: string | null;
   onDone: (fromLink?: boolean) => void;
 };
+
+function wouldReplaceSavedPlan(payload: SharePayload): boolean {
+  const saved = savedPlanFor(payload);
+  return saved !== undefined && shareChangesPlan(saved, payload);
+}
 
 export function SetupPlaceholder() {
   return (
@@ -58,7 +65,14 @@ function SetupFields({ plan, submitLabel, large, shareInput, onDone }: SetupForm
   const [code, setCode] = useState(shareInput ?? "");
   const [linkedPlan] = useState(() => shareInput == null ? null : lookupMockShare(shareInput));
   const [codeError, setCodeError] = useState(shareInput != null && !linkedPlan ? INVALID_CODE : undefined);
+  /** A share waiting for the student to agree to replace their saved plan. */
+  const [pending, setPending] = useState<{ payload: SharePayload; fromLink: boolean } | null>(() =>
+    linkedPlan && wouldReplaceSavedPlan(linkedPlan) ? { payload: linkedPlan, fromLink: true } : null,
+  );
+  /** A link loads straight away when there is nothing to overwrite. */
+  const [autoImport] = useState(() => linkedPlan !== null && pending === null);
   const importedLink = useRef(false);
+  const returnToCode = useRef(false);
 
   const loadShared = useCallback(async (payload: SharePayload, fromLink: boolean) => {
     await planActions.loadShared(payload);
@@ -67,10 +81,16 @@ function SetupFields({ plan, submitLabel, large, shareInput, onDone }: SetupForm
   }, [onDone, toast]);
 
   useEffect(() => {
-    if (!online || !linkedPlan || importedLink.current) return;
+    if (!online || !autoImport || !linkedPlan || importedLink.current) return;
     importedLink.current = true;
     void loadShared(linkedPlan, true);
-  }, [linkedPlan, loadShared, online]);
+  }, [autoImport, linkedPlan, loadShared, online]);
+
+  useEffect(() => {
+    if (pending || !returnToCode.current) return;
+    returnToCode.current = false;
+    document.getElementById(codeId)?.focus();
+  }, [codeId, pending]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -86,10 +106,34 @@ function SetupFields({ plan, submitLabel, large, shareInput, onDone }: SetupForm
       setCodeError(INVALID_CODE);
       return;
     }
+    if (wouldReplaceSavedPlan(payload)) {
+      setPending({ payload, fromLink: false });
+      return;
+    }
     void loadShared(payload, false);
   }
 
-  if (linkedPlan && online) return <SetupPlaceholder />;
+  function replacePlan() {
+    if (!pending) return;
+    setPending(null);
+    void loadShared(pending.payload, pending.fromLink);
+  }
+
+  function keepPlan() {
+    if (!pending) return;
+    setPending(null);
+    // A link's next stop is the planner; a typed code returns to its field.
+    if (pending.fromLink) onDone(true);
+    else returnToCode.current = true;
+  }
+
+  if (pending && online) {
+    const { intake: sharedIntake, term: sharedTerm } = pending.payload;
+    return (
+      <ReplacePlanConfirm planName={`${sharedIntake} · ${sharedTerm}`} onReplace={replacePlan} onKeep={keepPlan} />
+    );
+  }
+  if (autoImport && online) return <SetupPlaceholder />;
 
   return (
     <div className="flex flex-col gap-5">
