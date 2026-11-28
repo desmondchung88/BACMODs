@@ -67,13 +67,16 @@ docker compose down
 ```
 
 GitHub Actions runs `checks` on pull requests and pushes to `main`, then runs `e2e` after `checks`
-passes. Both jobs use Node.js 24, cache npm downloads and check out the event SHA. On a pull request,
-that SHA identifies GitHub's test merge commit, so the Docker image stamp and Playwright's expected
-revision match. The browser job waits for HTTP readiness and uploads available reports and traces
-on failure. [CI workflow](../.github/workflows/ci.yml)
+passes. A pull request that changes only Markdown (`.md`) files skips `e2e`, which still counts as a
+passing check. Both jobs use Node.js 24, cache npm downloads and check out the event SHA. On a pull
+request, that SHA identifies GitHub's test merge commit, so the Docker image stamp and Playwright's
+expected revision match. The browser job installs only Playwright's headless Chromium shell, waits
+for HTTP readiness and uploads available reports and traces on failure. CI and the Docker image
+install packages without npm's audit and funding checks. [CI workflow](../.github/workflows/ci.yml)
 
-The pull-request guards run Gitleaks and check changed paths against the data and environment-file
-rules below. [Guard workflow](../.github/workflows/guards.yml)
+The pull-request guards run Gitleaks, check changed paths against the data and environment-file
+rules below, and run `npm audit` on the lockfile. Audit findings are reported without blocking the
+merge. [Guard workflow](../.github/workflows/guards.yml)
 
 ## 3. Hard rules
 

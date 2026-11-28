@@ -83,3 +83,11 @@ jobs:
             foreach ($path in $blocked) { Write-Host "Blocked path $path" }
             throw 'Pull request changes include forbidden timetable or environment files.'
           }
+
+      # Report only: findings are listed without blocking the merge. A high or critical finding
+      # marks the step as failed. The registry is fixed so the checkout can't redirect the request.
+      - name: Audit dependencies
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 3
+        run: npm audit --package-lock-only --audit-level=high --registry=https://registry.npmjs.org/
